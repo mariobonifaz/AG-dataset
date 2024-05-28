@@ -1,0 +1,111 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from random import uniform, randint, random
+
+# Cargar el dataset
+dataset_path = 'dataset.xlsx'  # Asegúrate de ajustar la ruta al archivo
+dataset = pd.read_excel(dataset_path)
+x_values = dataset[['x1', 'x2', 'x3', 'x4']].values
+y_values = dataset['y'].values
+
+# Parámetros del AG
+poblacion_inicial = 50  # Incrementar el tamaño de la población inicial
+cantidad_generaciones = 100  # Aumentar el número de generaciones
+limite_poblacion = 100  # Incrementar el límite de población
+tasa_cruza = 0.7  # Ajustar la tasa de cruza
+tasa_mutacion = 0.2  # Ajustar la tasa de mutación
+
+# Función objetivo: Mean Squared Error
+def funcion_objetivo(individuo, x_values, y_values):
+    predictions = x_values.dot(individuo[1:]) + individuo[0]
+    mse = np.mean((predictions - y_values) ** 2)
+    return mse
+
+# Generar población inicial
+def generar_poblacion_inicial(poblacion_inicial, num_variables):
+    return [np.random.uniform(-10, 10, num_variables + 1) for _ in range(poblacion_inicial)]
+
+# Cruza
+def cruza(individuo1, individuo2):
+    if random() < tasa_cruza:
+        punto = randint(1, len(individuo1) - 1)
+        hijo = np.concatenate((individuo1[:punto], individuo2[punto:]))
+    else:
+        hijo = individuo1.copy()
+    return hijo
+
+# Mutación
+def mutacion(individuo):
+    if random() < tasa_mutacion:
+        indice = randint(0, len(individuo) - 1)
+        individuo[indice] += uniform(-1, 1)
+
+# Selección por torneo
+def seleccion_por_torneo(poblacion, k=3):
+    seleccionados = []
+    for _ in range(len(poblacion)):
+        indices_torneo = np.random.choice(range(len(poblacion)), k, replace=False)
+        torneo = [poblacion[i] for i in indices_torneo]
+        ganador = min(torneo, key=lambda ind: funcion_objetivo(ind, x_values, y_values))
+        seleccionados.append(ganador)
+    return seleccionados
+
+# Selección de los mejores
+def seleccionar_mejores(poblacion):
+    poblacion.sort(key=lambda ind: funcion_objetivo(ind, x_values, y_values))
+    return poblacion[:limite_poblacion]
+
+# Algoritmo genético mejorado con registro de MSE para gráficas y reporte de los mejores individuos
+def algoritmo_genetico_mejorado(poblacion_inicial, cantidad_generaciones):
+    num_variables = 4  # x1, x2, x3, x4
+    poblacion = generar_poblacion_inicial(poblacion_inicial, num_variables)
+
+    # Listas para almacenar los valores de MSE
+    mejores_mse = []
+    peores_mse = []
+    promedio_mse = []
+
+    for _ in range(cantidad_generaciones):
+        nueva_poblacion = []
+        while len(nueva_poblacion) < limite_poblacion:
+            ind1, ind2 = np.random.choice(range(len(poblacion)), 2, replace=False)
+            hijo = cruza(poblacion[ind1], poblacion[ind2])
+            mutacion(hijo)
+            nueva_poblacion.append(hijo)
+        poblacion = seleccion_por_torneo(nueva_poblacion)
+
+        # Calcular MSE para los mejores, peores y promedio
+        mses = [funcion_objetivo(ind, x_values, y_values) for ind in poblacion]
+        mejores_mse.append(min(mses))
+        peores_mse.append(max(mses))
+        promedio_mse.append(np.mean(mses))
+    
+    # Seleccionar y mostrar los 3 mejores individuos
+    mejores_individuos = seleccionar_mejores(poblacion)[:3]
+    resultados = []
+    for ind in mejores_individuos:
+        mse = funcion_objetivo(ind, x_values, y_values)
+        print(f"Individuo: {ind}, MSE: {mse}")  # Imprimir MSE
+        resultados.append((ind, mse))
+    
+    return mejores_mse, peores_mse, promedio_mse, resultados
+
+# Ejecutar el algoritmo genético mejorado y obtener los valores de MSE
+mejores_mse, peores_mse, promedio_mse, resultados_mejores_individuos = algoritmo_genetico_mejorado(poblacion_inicial, cantidad_generaciones)
+
+# Imprimir los 3 mejores individuos con sus coeficientes y MSE
+for i, (coeficientes, mse) in enumerate(resultados_mejores_individuos, 1):
+    print(f"Individuo {i}: Coeficientes = {coeficientes}, MSE = {mse}")
+
+# Crear la gráfica de evolución
+plt.figure(figsize=(10, 6))
+plt.plot(mejores_mse, label='Mejor MSE')
+plt.plot(peores_mse, label='Peor MSE')
+plt.plot(promedio_mse, label='Promedio MSE')
+plt.xlabel('Generación')
+plt.ylabel('MSE')
+plt.title('Evolución de los Individuos')
+plt.legend()
+plt.grid(True)
+plt.show()
